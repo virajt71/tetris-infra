@@ -59,7 +59,7 @@ resource "aws_security_group" "Jenkins-sg" {
 }
 
 resource "aws_instance" "web" {
-  ami                    = "ami-0c7217cdde317cfec"
+  ami                    = "ami-05fb0b8c1424f266b"
   instance_type          = "t2.large"
   key_name               = "netflix"
   vpc_security_group_ids = [aws_security_group.Jenkins-sg.id]
