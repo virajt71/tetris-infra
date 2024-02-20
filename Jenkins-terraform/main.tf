@@ -66,6 +66,8 @@ resource "aws_instance" "web" {
   user_data              = templatefile("./install_jenkins.sh", {})
   iam_instance_profile   = aws_iam_instance_profile.example_profile.name
 
+  availability_zone = "us-east-1a"
+
   tags = {
     Name = "Jenkins-argo"
   }
