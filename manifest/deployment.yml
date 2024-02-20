@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: tetris
-          image: soulr27/tetris:latest
+          image: soulr27/tetris:a80e827556e0
           ports:
             - containerPort: 3000
 
