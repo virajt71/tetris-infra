@@ -1,0 +1,168 @@
+pipeline{
+    agent any
+    tools{
+        jdk 'jdk17'
+        nodejs 'node16'
+    }
+    environment {
+        SCANNER_HOME=tool 'sonar-scanner'
+        GIT_REPO_NAME = "tetris-infra"
+        GIT_USER_NAME = "virajt71"
+    } 
+    stages {
+        stage('clean workspace'){
+            steps{
+                cleanWs()
+            }
+        }
+        stage('Checkout from Git'){
+            steps{
+                git branch: 'develop', url: 'https://github.com/virajt71/tetris-dev.git'
+            }
+        }
+        stage("Sonarqube Analysis"){
+            steps{
+                withSonarQubeEnv('sonar-server') {
+                    sh ''' $SCANNER_HOME/bin/sonar-scanner -Dsonar.projectName=Tetris \
+                    -Dsonar.projectKey=Tetris '''
+                }
+            }
+        }
+        stage("quality gate"){
+           steps {
+                script {
+                    waitForQualityGate abortPipeline: false, credentialsId: 'Sonar-token' 
+                }
+            } 
+        }
+        stage('Install Dependencies') {
+            steps {
+                sh "npm install"
+            }
+        }
+        stage('OWASP FS SCAN') {
+            steps {
+                dependencyCheck additionalArguments: '--scan ./ --disableYarnAudit --disableNodeAudit', odcInstallation: 'DP-Check'
+                dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+            }
+        }
+        stage('TRIVY FS SCAN') {
+            steps {
+                sh "trivy fs . > trivyfs.txt"
+            }
+        }
+        stage("Docker Build & Push"){
+            steps{
+                script {
+                    withDockerRegistry(credentialsId: 'docker', toolName: 'docker'){   
+                       sh "docker build -t tetris ."
+                       def latestImageId = sh(script: 'docker images --quiet --format "{{.ID}}" --filter "reference=tetris" | head -n 1', returnStdout: true).trim()
+                       sh "docker tag tetris soulr27/tetris:${latestImageId} "
+                       sh "docker push soulr27/tetris:${latestImageId} "
+                    }
+                }
+            }
+        }
+        stage("TRIVY") {
+            steps {
+                script {
+                    def latestImageId = sh(script: 'docker images --quiet --format "{{.ID}}" --filter "reference=tetris" | head -n 1', returnStdout: true).trim()
+                    sh "trivy image soulr27/tetris:${latestImageId} > trivyimage.txt" 
+                }
+            }
+        }
+        stage('Checkout Code') {
+            steps {
+                git branch: 'develop', url: 'https://github.com/virajt71/tetris-infra.git'
+            }
+        }
+        stage('Update Deployment File') {
+            steps {
+                dir('manifest') {
+                    script {
+                        withCredentials([string(credentialsId: 'github', variable: 'GITHUB_TOKEN')]) {
+                            def latestImageId = sh(script: 'docker images --quiet --format "{{.ID}}" --filter "reference=tetris" | head -n 1', returnStdout: true).trim()
+                            NEW_IMAGE_NAME = "soulr27/tetris:${latestImageId}"   
+                            sh "sed -i 's|image: .*|image: $NEW_IMAGE_NAME|' deployment.yml"
+                            sh 'git add deployment.yml'
+                            sh "git commit -m 'Update deployment image to $NEW_IMAGE_NAME'"
+                            sh "git push https://${GITHUB_TOKEN}@github.com/${GIT_USER_NAME}/${GIT_REPO_NAME} HEAD:develop"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+pipeline{
+    agent any
+    tools{
+        jdk 'jdk17'
+        nodejs 'node16'
+    }
+    environment {
+        SCANNER_HOME=tool 'sonar-scanner'
+        NVD_KEY = credentials('your-nvd-key-id')
+    }
+    stages {
+        stage('clean workspace'){
+            steps{
+                cleanWs()
+            }
+        }
+        stage('Checkout from Git'){
+            steps{
+                git branch: 'main', url: 'https://github.com/Aj7Ay/Tetris-V1.git'
+            }
+        }
+        stage("Sonarqube Analysis "){
+            steps{
+                withSonarQubeEnv('sonar-server') {
+                    sh ''' $SCANNER_HOME/bin/sonar-scanner -Dsonar.projectName=TetrisVersion1.0 \
+                    -Dsonar.projectKey=TetrisVersion1.0 '''
+                }
+            }
+        }
+        stage("quality gate"){
+           steps {
+                script {
+                    waitForQualityGate abortPipeline: false, credentialsId: 'Sonar-token'
+                }
+            }
+        }
+        stage('Install Dependencies') {
+            steps {
+                sh "npm install"
+            }
+        }
+        stage('OWASP FS SCAN') {
+            steps {
+                dependencyCheck additionalArguments: '--scan ./ --disableYarnAudit --disableNodeAudit --nvdCveUrl11Modified=https://nvd.nist.gov/feeds/json/cve/1.1/nvdcve-1.1-%d.json.gz --cveValidForHours 72 --cveUrl https://nvd.nist.gov --cveValidForHours 72 --cveValidForHours 72 --connectionTimeout 10000 --server https://web:port --databaseUser <Your_NVD_Key>', odcInstallation: 'DP-Check'
+                dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+            }
+        }
+        stage('TRIVY FS SCAN') {
+            steps {
+                sh "trivy fs . > trivyfs.txt"
+            }
+        }
+        stage("Docker Build & Push"){
+            steps{
+                script{
+                   withDockerRegistry(credentialsId: 'docker', toolName: 'docker'){
+                       sh "docker build -t tetrisv1 ."
+                       sh "docker tag tetrisv1 sevenajay/tetrisv1:latest "
+                       sh "docker push sevenajay/tetrisv1:latest "
+                    }
+                }
+            }
+        }
+        stage("TRIVY"){
+            steps{
+                sh "trivy image sevenajay/tetrisv1:latest > trivyimage.txt"
+            }
+        }
+    }
+}
