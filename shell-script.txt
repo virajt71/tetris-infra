@@ -1,21 +1,12 @@
 #!/bin/bash
 
-sudo apt-get update -y && \
-     apt-get install -y \
-     wget \
-     unzip \
-     apt-transport-https \
-     ca-certificates \
-     curl \
-     gnupg \
-     lsb-release \
-     openjdk-17-jdk
-
-sudo apt update -y
-wget -O - https://packages.adoptium.net/artifactory/api/gpg/key/public | tee /etc/apt/keyrings/adoptium.asc
-echo "deb [signed-by=/etc/apt/keyrings/adoptium.asc] https://packages.adoptium.net/artifactory/deb $(awk -F= '/^VERSION_CODENAME/{print$2}' /etc/os-release) main" | tee /etc/apt/sources.list.d/adoptium.list
-sudo apt update -y
-sudo apt install openjdk-17-jdk -y
+echo "In case unable to install temurin-17-jdk, try to install as root"
+sudo apt update -y && sudo apt upgrade -y
+sudo apt install -y wget apt-transport-https gpg
+wget -qO - https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg --dearmor | tee /etc/apt/trusted.gpg.d/adoptium.gpg > /dev/null
+echo "deb https://packages.adoptium.net/artifactory/deb $(awk -F= '/^VERSION_CODENAME/{print$2}' /etc/os-release) main" | tee /etc/apt/sources.list.d/adoptium.list
+sudo apt update
+sudo apt install temurin-17-jdk
 /usr/bin/java --version
 
 curl -fsSL https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key | sudo tee /usr/share/keyrings/jenkins-keyring.asc > /dev/null
